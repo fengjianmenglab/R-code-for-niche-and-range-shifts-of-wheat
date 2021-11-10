@@ -1,0 +1,491 @@
+R code for step AIC
+
+
+library(MASS)
+
+setwd("F:/gxiang/AIC/145AIC")
+Data <- read.csv("145_rarefied_points.csv")
+head(Data)
+Data<-na.omit(Data)
+
+##Data$Triticum_a<factor(Data$Triticum_a,levels = c(0,1) ,labels = c('0',"1"))
+View(Data)
+names(Data)
+summary(Data)
+str(Data)
+
+model<-glm(Triticum_a~.,data = Data)
+
+summary(model)$coefficients
+exp(cbind("OR"=coef(model),confint(model)))
+
+model.forward<-stepAIC(model,direction = "forward")
+summary(model.forward)$coefficients
+exp(cbind("OR"=coef(model.forward),confint(model.forward)))
+
+model.backward<-stepAIC(model,direction = "backward")
+summary(model.backward)$coefficients
+exp(cbind("OR"=coef(model.backward),confint(model.backward)))
+
+model.both<-stepAIC(model,direction = "both")
+AIC_CSV<-summary(model.both)$coefficients
+AIC_CSV
+write.csv(AIC_CSV,"./145AIC.CSV")
+OR<-exp(cbind("OR"=coef(model.both),confint(model.both)))
+OR
+write.csv(OR,"./145OR.CSV")
+
+
+
+
+
+
+
+
+R code for ecological niche models in biomod2
+
+
+setwd("E:/biomod2_zaipei")
+
+myExpl = stack( raster( "current/bio1.tif"),
+
+raster( "current/bio2.tif"),
+
+raster( "current/bio3.tif"),
+
+raster( "current/bio4.tif"),
+
+raster( "current/bio6.tif"),
+
+raster( "current/bio7.tif"),
+
+raster( "current/bio8.tif"),
+
+raster( "current/bio9.tif"),
+
+raster( "current/bio10.tif"),
+
+raster( "current/bio11.tif"),
+
+raster( "current/bio13.tif"),
+
+raster( "current/bio15.tif"),
+
+raster( "current/bio16.tif"),
+
+raster( "current/bio17.tif"),
+
+raster( "current/bio19.tif"))
+
+
+
+setwd("E:/biomod2_zaipei/biomod2_xm/145")
+
+myBiomodData <- BIOMOD_FormatingData(resp.var = myResp, 
+
+expl.var = myExpl,
+
+resp.xy = myRespXY,
+
+resp.name = myRespName,
+
+PA.nb.rep = 5,
+
+PA.nb.absences = 2602,
+
+PA.strategy = 'random')
+
+
+
+write.csv(myBiomodData@coord,"./PA_145.CSV")
+
+
+
+myBiomodData
+
+
+
+plot(myBiomodData)
+
+myBiomodOption <- BIOMOD_ModelingOptions()
+
+
+
+
+
+getwd()
+
+myBiomodModelOut <- BIOMOD_Modeling( 
+
+myBiomodData, 
+
+models = c("GLM", "GBM", "CTA", "ANN", "FDA", "RF", "MAXENT.Phillips"),
+
+models.options = myBiomodOption, 
+
+NbRunEval=5,
+
+DataSplit=70,
+
+Prevalence=0.5,
+
+VarImport=3, 
+
+models.eval.meth = c('TSS','ROC','KAPPA'), 
+
+SaveObj = TRUE, 
+
+rescal.all.models = TRUE,
+
+do.full.models = FALSE,
+
+modeling.id = paste(myRespName,"FirstModeling",sep=""))
+
+
+
+
+
+
+
+myBiomodModelOut
+
+myBiomodModelEval <- get_evaluations(myBiomodModelOut)
+
+dimnames(myBiomodModelEval)
+
+write.csv(myBiomodModelEval,file = "./myBiomodModelEval_145.csv")
+
+KAPPA=myBiomodModelEval["KAPPA","Testing.data",,,]
+
+write.csv(KAPPA,"./KAPPA_145.CSV")
+
+ROC=myBiomodModelEval["ROC","Testing.data",,,]
+
+write.csv(ROC,"./ROC_145.CSV")
+
+TSS=myBiomodModelEval["TSS","Testing.data",,,]
+
+write.csv(TSS,"./TSS_145.CSV")
+
+varimportan=get_variables_importance(myBiomodModelOut)
+
+write.csv(varimportan,"./varimportan_145.csv")
+
+
+
+
+
+myBiomodEM <- BIOMOD_EnsembleModeling( modeling.output = myBiomodModelOut, 
+
+chosen.models = 'all', 
+
+em.by='all', 
+
+eval.metric = c('TSS','ROC'), 
+
+eval.metric.quality.threshold = c(0.6,0.8),
+
+prob.mean = T, 
+
+prob.cv = T, 
+
+prob.ci = T,
+
+prob.ci.alpha = 0.05, 
+
+prob.median = T, 
+
+committee.averaging = T, 
+
+prob.mean.weight = T,
+
+prob.mean.weight.decay = 'proportional' )
+
+
+
+myBiomodEM
+
+
+
+
+
+
+
+
+
+EM_evaluations=get_evaluations(myBiomodEM)
+
+write.csv(EM_evaluations,"/.EM_evaluations_145.csv")
+
+myBiomodProj <- BIOMOD_Projection( modeling.output = myBiomodModelOut, 
+
+new.env = myExpl, 
+
+proj.name = 'current', 
+
+selected.models = 'all', 
+
+binary.meth = 'TSS', 
+
+compress = 'xz', 
+
+build.clamping.mask = FALSE,
+
+output.format='.img')
+
+
+
+
+
+
+
+myBiomodProj
+
+
+
+plot(myBiomodProj)
+
+myCurrentProj <- get_predictions(myBiomodProj)
+
+myCurrentProj
+
+
+
+
+
+myBiomodEF <- BIOMOD_EnsembleForecasting
+
+
+
+
+
+plot(myBiomodProj)
+
+myCurrentProj <- get_predictions(myBiomodProj)
+
+myCurrentProj
+
+
+
+
+
+myBiomodEF <- BIOMOD_EnsembleForecasting(projection.output = myBiomodProj,
+
+EM.output = myBiomodEM)
+
+
+
+
+
+myBiomodEF
+
+plot(myBiomodEF)
+
+setwd("E:/biomod2_zaipei/biomod2_xm/145/Triticum.aestivum.L./proj_current")
+
+raster_<- stack('proj_current_Triticum.aestivum.L._ensemble.grd')
+
+writeRaster(raster_, file="proj_current.asc", format="ascii", overwrite=TRUE, bylayer=TRUE, suffix=names(raster_))
+
+
+
+
+
+setwd("E:/biomod2_zaipei/biomod2_xm/145")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+R code for niche dynamics in ecospat
+library(ade4)
+
+library(ape)
+
+library(gbm)
+
+library(sp)
+
+library(ecospat)
+
+library(rgeos)
+
+library(raster)
+
+library(rworldmap)
+
+library(parallel)
+
+library(reshape)
+
+library(ggplot2)
+
+library(rgdal)
+
+
+
+setwd("F:/gxiang/AIC")
+
+DataSpecies1 <- read.csv("specise_data/145_1_rarefied_points.csv")
+
+head(DataSpecies1)
+
+myRespName1 <- 'Aegilops.tauschii' 
+
+myResp1 <- as.numeric(DataSpecies1[,myRespName1])
+
+myRespXY1<- DataSpecies1[,c("X_WGS84","Y_WGS84")]
+
+
+
+DataSpecies2 <- read.csv("specise_data/145_rarefied_points.csv")
+
+head(DataSpecies2)
+
+myRespName2 <- 'Triticum.aestivum' 
+
+myResp2 <- as.numeric(DataSpecies2[,myRespName2])
+
+myRespXY2 <- DataSpecies2[,c("X_WGS84","Y_WGS84")]
+
+
+
+
+
+myExpl = stack( raster( "current/bio1.tif"),
+
+raster( "current/bio2.tif"),
+
+raster( "current/bio4.tif"),
+
+raster( "current/bio5.tif"),
+
+raster( "current/bio7.tif"),
+
+raster( "current/bio8.tif"),
+
+
+
+raster( "current/bio10.tif"),
+
+raster( "current/bio11.tif"),
+
+raster( "current/bio12.tif"),
+
+raster( "current/bio15.tif"),
+
+
+
+raster( "current/bio18.tif"),
+
+raster( "current/bio19.tif"))
+
+
+
+
+
+xy.sp1<-subset(myRespXY1)#Bromus_erectus
+
+xy.sp2<-subset(myRespXY2) #Daucus_carota
+
+
+
+env.sp1<-extract(myExpl,xy.sp1)
+
+env.sp2<-extract(myExpl,xy.sp2)
+
+env.bkg<-na.exclude(values(myExpl))
+
+#################################### PCA-ENVIRONMENT ##################################
+
+pca.cal <- dudi.pca(env.bkg, center = TRUE, scale = TRUE, scannf = FALSE, nf = 2)
+
+pca.cal$eig[1:4]
+
+round(pca.cal$eig/sum(pca.cal$eig)*100,2)[1:2]
+
+# predict the scores on the axes
+
+scores.bkg <- pca.cal$li #scores for background climate
+
+scores.sp1 <- suprow(pca.cal,env.sp1)$lisup #scores for sp1
+
+scores.sp2 <- suprow(pca.cal,env.sp2)$lisup #scores for sp2
+
+# calculation of occurence density (niche z)
+
+z1 <- ecospat.grid.clim.dyn(scores.bkg, scores.bkg, scores.sp1,R=100)
+
+z2 <- ecospat.grid.clim.dyn(scores.bkg, scores.bkg, scores.sp2,R=100)
+
+plot(z1$z.uncor)
+
+points(scores.sp1)
+
+plot(z2$z.uncor)
+
+points(scores.sp2)
+
+
+
+ecospat.shift.centroids(scores.sp1,scores.sp2,env.sp1,env.sp2,col = 'red')
+
+
+
+ecospat.niche.overlap(z1,z2 ,cor = TRUE)
+
+#################################### stability S in space ##################################
+
+geozS<-ecospat.niche.dynIndexProjGeo(z1,z2,myExpl,index="stability")
+
+plot(geozS,main="Stability")
+
+points(xy.sp1,col="red")
+
+points(xy.sp2,col="blue")
+
+
+
+#####Run a niche equivalency test based on two species occurrence density grids.####
+
+ecospat.niche.equivalency.test (z1, z2, rep=100, alternative="greater", ncores = 1)
+
+
+
+
+
+#####Run a niche similarity test based on two species occurrence density grids.#####
+
+ecospat.niche.similarity.test (z1, z2, rep=100, alternative = "greater",
+
+rand.type = 1, ncores= 1)
+
+
+
+######Calculate niche expansion, stability and unfilling########
+
+ecospat.niche.dyn.index (z1, z2, intersection=NA)
+
+
+
+###Niche Categories and Species Density###
+
+ecospat.plot.niche.dyn(z1, z2, quant=0.25, interest=2,
+
+title= "Niche Overlap", name.axis1="PC1",
+
+name.axis2="PC2")
+
